@@ -9,49 +9,50 @@ def dashboard():
     close = 4285.89
     ema7 = 4286.31
     rsi = 41.94
+    super_trend = "صاعد"  # خيارات: صاعد أو هابط
     
     signal = "⏳ بانتظار إدخال بيانات منصة Exness..."
     status_class = "wait"
-    advice = "قم بإدخال قيم السعر، EMA 7، و RSI من منصة Exness الخاصة بك في الأسفل واضغط فحص الموجة."
+    advice = "قم بإدخال قيم السعر، EMA 7، RSI، وحالة السوبر تريند من منصة Exness الخاصة بك."
 
     if request.method == 'POST':
         try:
             close = float(request.form.get('close', 4285.89))
             ema7 = float(request.form.get('ema7', 4286.31))
             rsi = float(request.form.get('rsi', 41.94))
+            super_trend = request.form.get('super_trend', 'صاعد')
             
-            # حساب الحركة بناءً على القيم المدخلة
+            # الشروط بناءً على الاستراتيجية المتكاملة
+            is_bullish_trend = (super_trend == 'صاعد')
             is_above_ema = close > ema7
-            # افترضنا افتراضاً بسيطاً للارتداد، أو يمكنك تعديل المنطق حسب رغبتك
-            is_rebound = close >= ema7 
 
-            # --- منطق صائد الموجات (Wave Hunter) ---
-            if is_above_ema:
-                if 45 <= rsi <= 75:
+            # --- منطق صائد الموجات الحقيقي (SuperTrend + EMA 7 + RSI 14) ---
+            if is_bullish_trend:
+                if is_above_ema and 45 <= rsi <= 75:
                     signal = "🟢 تجديد دخول شراء (BUY WAVE RE-ENTRY)"
                     status_class = "buy"
-                    advice = "الموجة الصاعدة مستمرة وهناك ارتداد ممتاز بعد تصحيح. فرصة دخول شراء جديدة."
+                    advice = "السوبر تريند صاعد والسعر فوق EMA 7 مع ارتداد ممتاز لمؤشر RSI. فرصة شراء قوية."
                 elif rsi > 70:
-                    signal = "⚠️ تصحيح حاد مؤقت (تشبع شراء)"
+                    signal = "⚠️ تشبع شراء (انتظر تصحيح طفيف)"
                     status_class = "warning"
-                    advice = "السعر مرتفع وقريب من التشبع. انتظر تصحيحاً طفيفاً قبل الدخول."
+                    advice = "الاتجاه صاعد ولكن RSI في منطقة تشبع شراء. انتظر هدوء السعر قليلاً."
                 else:
                     signal = "🟢 استمرار الاتجاه الصاعد (BUY)"
                     status_class = "buy"
-                    advice = "الشروط متوفرة للاستمرار مع الموجة الصاعدة."
-            else:
-                if 25 <= rsi <= 55:
+                    advice = "السوبر تريند صاعد والشروط متوفرة للاستمرار مع الموجة."
+            else: # اتجاه هابط
+                if not is_above_ema and 25 <= rsi <= 55:
                     signal = "🔴 تجديد دخول بيع (SELL WAVE RE-ENTRY)"
                     status_class = "sell"
-                    advice = "الموجة الهابطة مستمرة وسعر يواصل الهبوط بعد تصحيح. فرصة دخول بيع جديدة."
+                    advice = "السوبر تريند هابط والسعر تحت EMA 7 مع ارتداد مناسب لمؤشر RSI. فرصة بيع قوية."
                 elif rsi < 30:
-                    signal = "⚠️ تصحيح صاعد مؤقت (تشبع بيع)"
+                    signal = "⚠️ تشبع بيع (انتظر تصحيح صاعد)"
                     status_class = "warning"
-                    advice = "السعر منخفض وقريب من التشبع. انتظر تصحيحاً صاعداً طفيفاً لاستئناف البيع."
+                    advice = "الاتجاه هابط ولكن RSI في منطقة تشبع بيع. انتظر ارتداداً مؤقتاً."
                 else:
                     signal = "🔴 استمرار الاتجاه الهابط (SELL)"
                     status_class = "sell"
-                    advice = "الشروط متوفرة للاستمرار في صفقات البيع."
+                    advice = "السوبر تريند هابط والشروط متوفرة للاستمرار في صفقات البيع."
                     
         except ValueError:
             signal = "❌ خطأ في الإدخال"
@@ -77,7 +78,7 @@ def dashboard():
                 .advice {{ background: rgba(56, 189, 248, 0.08); border: 1px solid #38bdf8; padding: 10px; border-radius: 8px; margin-top: 15px; font-size: 12px; color: #7dd3fc; line-height: 1.4; text-align: right; }}
                 form {{ margin-top: 20px; text-align: right; background: #0f172a; padding: 15px; border-radius: 12px; }}
                 label {{ display: block; font-size: 13px; color: #94a3b8; margin-bottom: 5px; }}
-                input {{ width: 100%; padding: 10px; margin-bottom: 12px; background: #1e293b; border: 1px solid #334155; color: #fff; border-radius: 8px; font-size: 16px; box-sizing: border-box; }}
+                input, select {{ width: 100%; padding: 10px; margin-bottom: 12px; background: #1e293b; border: 1px solid #334155; color: #fff; border-radius: 8px; font-size: 16px; box-sizing: border-box; }}
                 button {{ background: #38bdf8; color: #0b0f19; border: none; padding: 12px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }}
                 button:hover {{ background: #0ea5e9; }}
             </style>
@@ -85,7 +86,7 @@ def dashboard():
         <body>
             <div class="card">
                 <h1>🌊 صائد الموجات (Exness M5)</h1>
-                <div class="sub-title">إدخال مباشر مطابق لشارت منصتك</div>
+                <div class="sub-title">SuperTrend + EMA 7 + RSI 14</div>
                 
                 <div class="signal-box {status_class}">
                     {signal}
@@ -96,6 +97,12 @@ def dashboard():
                 </div>
 
                 <form method="POST">
+                    <label>حالة مؤشر السوبر تريند:</label>
+                    <select name="super_trend">
+                        <option value="صاعد" {"selected" if super_trend == "صاعد" else ""}>🟢 صاعد (Bullish)</option>
+                        <option value="هابط" {"selected" if super_trend == "هابط" else ""}>🔴 هابط (Bearish)</option>
+                    </select>
+
                     <label>السعر الحالي من Exness:</label>
                     <input type="text" name="close" value="{close}" required>
                     
