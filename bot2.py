@@ -2,55 +2,25 @@ import os
 import time
 import requests
 import pandas as pd
-import numpy as np
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+from flask import Flask, render_template_string
 
-# ==========================================
-# 1. خادم ويب صوري لتجاوز فحص Render Port
-# ==========================================
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is running 24/7!")
+app = Flask(__name__)
 
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    server_address = ('', port)
-    httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
-    print(f"Web server starting on port {port}...")
-    httpd.serve_forever()
-
-# تشغيل السيرفر الوهمي في الخلفية
-server_thread = threading.Thread(target=run_web_server)
-server_thread.daemon = True
-server_thread.start()
-
-# ==========================================
-# 2. إعدادات التداول والمتغيرات
-# ==========================================
+# إعدادات التداول
 SYMBOL = "PAXGUSDT"
 TIMEFRAME = "5m"
 CHECK_INTERVAL = 300  # كل 5 دقائق
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-
-def send_telegram(message):
-    if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("Telegram Token or Chat ID missing!")
-        return
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        print(f"Error sending Telegram message: {e}")
+# متغيرات لتخزين أحدث حالة للسوق
+market_data = {
+    "price": "جاري التحميل...",
+    "ema": "---",
+    "rsi": "---",
+    "supertrend": "---",
+    "signal": "NEUTRAL",
+    "time": "---"
+}
 
 def get_klines(symbol, interval, limit=100):
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
@@ -84,8 +54,7 @@ def calculate_supertrend(df, period=10, multiplier=3):
     tr1 = pd.DataFrame(high - low)
     tr2 = pd.DataFrame(abs(high - close.shift(1)))
     tr3 = pd.DataFrame(abs(low - close.shift(1)))
-    frames = [tr1, tr2, tr3]
-    tr = pd.concat(frames, axis=1).max(axis=1)
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.ewm(alpha=1/period, adjust=False).mean()
 
     hl2 = (high + low) / 2
@@ -100,10 +69,8 @@ def calculate_supertrend(df, period=10, multiplier=3):
             supertrend[i] = final_upperband[i]
     return supertrend
 
-def main():
-    last_signal = None
-    print("Bot started monitoring market...")
-    
+def market_monitor_loop():
+    global market_data
     while True:
         try:
             df = get_klines(SYMBOL, TIMEFRAME)
@@ -117,7 +84,6 @@ def main():
             rsi = last_row['rsi']
             st = last_row['supertrend']
 
-            # إشارات الشراء والبيع
             if price > ema and rsi > 50 and price > st:
                 signal = "BUY"
             elif price < ema and rsi < 50 and price < st:
@@ -125,20 +91,69 @@ def main():
             else:
                 signal = "NEUTRAL"
 
-            if signal != last_signal and signal != "NEUTRAL":
-                msg = (f"🚨 **Signal {signal} detected!**\n"
-                       f"Prix: {price}\n"
-                       f"EMA (7): {ema:.2f}\n"
-                       f"RSI (14): {rsi:.2f}\n"
-                       f"SuperTrend: {st:.2f}")
-                send_telegram(msg)
-                last_signal = signal
-
+            market_data = {
+                "price": f"{price:,.2f}",
+                "ema": f"{ema:.2f}",
+                "rsi": f"{rsi:.2f}",
+                "supertrend": f"{st:.2f}",
+                "signal": signal,
+                "time": time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())
+            }
         except Exception as e:
-            print(f"Erreur dans la boucle: {e}")
+            print(f"Error: {e}")
 
         time.sleep(CHECK_INTERVAL)
 
+# تصميم واجهة الويب المتوافقة مع الهواتف
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مراقب الذهب - Gold Tracker</title>
+    <meta http-equiv="refresh" content="60">
+    <style>
+        body { font-family: Tahoma, sans-serif; background-color: #0f172a; color: #f8fafc; text-align: center; padding: 20px; margin: 0; }
+        .card { background: #1e293b; border-radius: 15px; padding: 20px; max-width: 400px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        h1 { color: #38bdf8; font-size: 20px; margin-bottom: 10px; }
+        .price { font-size: 30px; font-weight: bold; color: #fbbf24; margin: 15px 0; }
+        .signal-BUY { background-color: #166534; color: #dcfce7; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 18px; }
+        .signal-SELL { background-color: #991b1b; color: #fee2e2; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 18px; }
+        .signal-NEUTRAL { background-color: #334155; color: #cbd5e1; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 18px; }
+        .info { margin: 12px 0; font-size: 14px; display: flex; justify-content: space-between; padding: 8px 10px; background: #0f172a; border-radius: 5px; }
+        .footer { font-size: 11px; color: #94a3b8; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🥇 مراقب سوق الذهب PAXG/USDT</h1>
+        <div class="price">{{ data.price }} USDT</div>
+        
+        <div class="signal-{{ data.signal }}">
+            الإشارة الحالية: {{ data.signal }}
+        </div>
+
+        <div style="margin-top: 20px;">
+            <div class="info"><span>مؤشر EMA (7):</span> <strong>{{ data.ema }}</strong></div>
+            <div class="info"><span>مؤشر RSI (14):</span> <strong>{{ data.rsi }}</strong></div>
+            <div class="info"><span>مؤشر SuperTrend:</span> <strong>{{ data.supertrend }}</strong></div>
+        </div>
+
+        <div class="footer">آخر تحديث: {{ data.time }} (UTC)<br>التحديث تلقائي كل دقيقة</div>
+    </div>
+</body>
+</html>
+"""
+
+@app.route('/')
+def home():
+    return render_template_string(HTML_TEMPLATE, data=market_data)
+
 if __name__ == "__main__":
-    send_telegram("⚡ **Advanced Re-entry Strategy Bot Active**\nPair: PAXGUSDT\nTimeframe: 5m\n\n🚀 تم تشغيل البوت بنجاح وهو الآن يراقب السوق 24/7!")
-    main()
+    t = threading.Thread(target=market_monitor_loop)
+    t.daemon = True
+    t.start()
+
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
