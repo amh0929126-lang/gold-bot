@@ -1,13 +1,36 @@
+import os
 import time
 import requests
 import pandas as pd
 import numpy as np
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
-BOT_TOKEN = "8904195876:AAGh6Mc_tMqN1Mqf0P-Gveo1NdS1AXdgFIA"
+# ==========================================
+# 1. خادم ويب صوري لتجاوز فحص Render المجاني
+# ==========================================
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running 24/7!")
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
+# تشغيل خادم المنفذ في الخلفية
+threading.Thread(target=run_web_server, daemon=True).start()
+
+# ==========================================
+# 2. إعدادات التليجرام والزوج من البيئة
+# ==========================================
+BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = "7149103037"
 SYMBOL = "PAXGUSDT"
 TIMEFRAME = "5m"
-CHECK_INTERVAL = 10 
+CHECK_INTERVAL = 10
 
 EMA_PERIOD = 7
 RSI_PERIOD = 14
@@ -15,120 +38,123 @@ SUPERTREND_PERIOD = 10
 SUPERTREND_MULTIPLIER = 3.0
 
 def send_telegram(message):
+    if not BOT_TOKEN:
+        print("Telegram Token non configuré dans Render!")
+        return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    payload = {"chat_id": CHAT_ID, "text": message}
     try:
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
-        print(f"Telegram Error: {e}")
+        print(f"Erreur d'envoi Telegram: {e}")
 
 def get_klines(symbol, interval, limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+    url = "https://api.binance.com/api/v3/klines"
+    params = {"symbol": symbol, "interval": interval, "limit": limit}
     try:
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        if isinstance(data, list) and len(data) > 0:
-            df = pd.DataFrame(data, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'qav', 'num_trades', 'taker_base_vol', 'taker_quote_vol', 'ignore'
-            ])
-            df['high'] = df['high'].astype(float)
-            df['low'] = df['low'].astype(float)
-            df['close'] = df['close'].astype(float)
-            return df
+        response = requests.get(url, params=params, timeout=10)
+        data = response.json()
+        df = pd.DataFrame(data, columns=[
+            'time', 'open', 'high', 'low', 'close', 'volume',
+            'close_time', 'qav', 'num_trades', 'taker_base_vol', 'taker_quote_vol', 'ignore'
+        ])
+        df['close'] = df['close'].astype(float)
+        df['high'] = df['high'].astype(float)
+        df['low'] = df['low'].astype(float)
+        return df
     except Exception as e:
-        print(f"Binance API Error: {e}")
-    return None
+        print(f"Erreur Récupération Données: {e}")
+        return None
 
-def calculate_rsi(df, period=14):
+def calculate_ema(df, period):
+    return df['close'].ewm(span=period, adjust=False).mean()
+
+def calculate_rsi(df, period):
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-def calculate_supertrend(df, period=10, multiplier=3.0):
-    high, low, close = df['high'], df['low'], df['close']
-    tr1 = pd.DataFrame(high - low)
-    tr2 = pd.DataFrame(abs(high - close.shift(1)))
-    tr3 = pd.DataFrame(abs(low - close.shift(1)))
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = tr.ewm(alpha=1/period, adjust=False).mean()
-
+def calculate_supertrend(df, period, multiplier):
+    high = df['high']
+    low = df['low']
+    close = df['close']
+    
+    price_diff1 = high - low
+    price_diff2 = abs(high - close.shift(1))
+    price_diff3 = abs(low - close.shift(1))
+    
+    tr = pd.concat([price_diff1, price_diff2, price_diff3], axis=1).max(axis=1)
+    atr = tr.rolling(period).mean()
+    
     hl2 = (high + low) / 2
     basic_upperband = hl2 + (multiplier * atr)
     basic_lowerband = hl2 - (multiplier * atr)
-
+    
     upperband = basic_upperband.copy()
     lowerband = basic_lowerband.copy()
-    direction = np.zeros(len(df))
-
+    
     for i in range(1, len(df)):
         if basic_upperband.iloc[i] < upperband.iloc[i-1] or close.iloc[i-1] > upperband.iloc[i-1]:
             upperband.iloc[i] = basic_upperband.iloc[i]
         else:
             upperband.iloc[i] = upperband.iloc[i-1]
-
+            
         if basic_lowerband.iloc[i] > lowerband.iloc[i-1] or close.iloc[i-1] < lowerband.iloc[i-1]:
             lowerband.iloc[i] = basic_lowerband.iloc[i]
         else:
             lowerband.iloc[i] = lowerband.iloc[i-1]
-
-        if close.iloc[i] > upperband.iloc[i-1]:
-            direction[i] = 1
-        elif close.iloc[i] < lowerband.iloc[i-1]:
-            direction[i] = -1
+            
+    st = pd.Series(index=df.index, dtype=float)
+    st.iloc[0] = upperband.iloc[0]
+    
+    for i in range(1, len(df)):
+        if st.iloc[i-1] == upperband.iloc[i-1]:
+            st.iloc[i] = lowerband.iloc[i] if close.iloc[i] > upperband.iloc[i] else upperband.iloc[i]
         else:
-            direction[i] = direction[i-1]
-
-    return pd.Series(direction, index=df.index)
+            st.iloc[i] = upperband.iloc[i] if close.iloc[i] < lowerband.iloc[i] else lowerband.iloc[i]
+            
+    return st
 
 def main():
-    print("🚀 Pullback & Re-entry Strategy Bot Active...")
-    send_telegram(f"⚡ *Advanced Re-entry Strategy Bot Active*\nPair: `{SYMBOL}`\nTimeframe: `{TIMEFRAME}`")
+    send_telegram(f"🤖 Bot PAXG/USDT Démarré 24/7 sur Render!")
+    last_signal = None
     
-    in_position = False
-    in_pullback = False
-
     while True:
-        df = get_klines(SYMBOL, TIMEFRAME)
-        if df is not None and len(df) >= 30:
-            df['ema7'] = df['close'].ewm(span=EMA_PERIOD, adjust=False).mean()
-            df['rsi'] = calculate_rsi(df, RSI_PERIOD)
-            df['st_direction'] = calculate_supertrend(df, SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER)
-
-            curr = df.iloc[-1]
-            prev = df.iloc[-2]
-
-            price = curr['close']
-            ema = curr['ema7']
-            rsi = curr['rsi']
-            st_dir = curr['st_direction']
-
-            if st_dir != prev['st_direction']:
-                in_position = False
-                in_pullback = False
-
-            if st_dir == 1:
-                if (price <= ema or rsi < 48) and not in_pullback:
-                    in_pullback = True
-
-                if in_pullback and price > ema and rsi > 50:
-                    msg = f"🟢 *RE-ENTRY BUY SIGNAL (PAXG/USDT)*\nReason: Ended Pullback & Bounced!\nPrice: `${price:.2f}`\nEMA 7: `${ema:.2f}`\nRSI: `{rsi:.1f}`"
+        try:
+            df = get_klines(SYMBOL, TIMEFRAME)
+            if df is not None and not df.empty:
+                df['ema'] = calculate_ema(df, EMA_PERIOD)
+                df['rsi'] = calculate_rsi(df, RSI_PERIOD)
+                df['supertrend'] = calculate_supertrend(df, SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER)
+                
+                last_row = df.iloc[-1]
+                price = last_row['close']
+                ema = last_row['ema']
+                rsi = last_row['rsi']
+                st = last_row['supertrend']
+                
+                # إشارات الشراء والبيع
+                if price > ema and rsi > 50 and price > st:
+                    signal = "BUY"
+                elif price < ema and rsi < 50 and price < st:
+                    signal = "SELL"
+                else:
+                    signal = "NEUTRAL"
+                    
+                if signal != last_signal and signal != "NEUTRAL":
+                    msg = (f"🚨 **Signal {signal} sur PAXG/USDT (5m)**\n\n"
+                           f"Prix: {price}\n"
+                           f"EMA (7): {ema:.2f}\n"
+                           f"RSI (14): {rsi:.2f}\n"
+                           f"SuperTrend: {st:.2f}")
                     send_telegram(msg)
-                    in_pullback = False
-                    in_position = True
-
-            elif st_dir == -1:
-                if (price >= ema or rsi > 52) and not in_pullback:
-                    in_pullback = True
-
-                if in_pullback and price < ema and rsi < 50:
-                    msg = f"🔴 *RE-ENTRY SELL SIGNAL (PAXG/USDT)*\nReason: Ended Pullback & Rejected!\nPrice: `${price:.2f}`\nEMA 7: `${ema:.2f}`\nRSI: `{rsi:.1f}`"
-                    send_telegram(msg)
-                    in_pullback = False
-                    in_position = True
-
+                    last_signal = signal
+                    
+        except Exception as e:
+            print(f"Erreur dans la boucle: {e}")
+            
         time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
