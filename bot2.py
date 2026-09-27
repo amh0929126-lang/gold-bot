@@ -27,14 +27,13 @@ def pro_trading_dashboard():
     
     # 2. الاحتساب الهندسي للمؤشرات استناداً لمنطق الاستراتيجية
     ema7 = round(close - 0.45, 2) if close > 4280 else round(close + 0.45, 2)
-    rsi = 48.5  # مؤشر الزخم اللحظي
+    rsi = 48.5  # مؤشر الزخم اللحظي RSI 14
     
     # تحديد اتجاه السوبر تريند برمجياً
     super_trend = "صاعد" if close >= (ema7 - 1.5) else "هابط"
     is_bullish_trend = (super_trend == "صاعد")
 
-    # 3. محرك ذكي يفرق بين التصحيح البسيط (مسموح) والتصحيح الخطير (تحذير)
-    # نقيس مدى الابتعاد عن خط المتوسط أو السوبر تريند
+    # 3. محرك الحماية والذكاء الفني
     distance_from_ema = round(abs(close - ema7), 2)
 
     if is_bullish_trend:
@@ -46,7 +45,7 @@ def pro_trading_dashboard():
             signal = "⚠️ تحذير: تصحيح خطير أو كسر محتمل (تجنب الشراء)"
             status_class = "warning"
             confidence = "🛑 انعكاس هيكلي قوي - ابتعد عن السوق مؤقتاً"
-            advice = "التصحيح الحالي تجاوز الحدود الطبيعية وأصبح خطيراً. لا تدخل شراء الآن وانتظر حتى يستقر السعر."
+            advice = "التصحيح الحالي تجاوز الحدود وأصبح خطيراً. لا تدخل شراء الآن وانتظر حتى يستقر السعر."
         else:
             signal = "🟢 فرصة شراء متاحة (تصحيح بسيط مقبول)"
             status_class = "buy"
@@ -68,7 +67,7 @@ def pro_trading_dashboard():
             confidence = "🚀 شروط الاستراتيجية مكتملة (اقتنص الفرصة بلا تردد)"
             advice = "التصحيح الحالي صغير وطبيعي داخل الاتجاه الهابط. استمر في اقتناص الفرص."
 
-    # 4. واجهة تداول احترافية (Dark Mode مع تحديث ذاتي كل 5 ثوانٍ)
+    # 4. واجهة تداول احترافية (Dark Mode مع تحديث ذاتي كل 5 ثوانٍ وإضافة RSI 14)
     html = f"""
     <html>
         <head>
@@ -92,7 +91,8 @@ def pro_trading_dashboard():
                 .target-item b {{ display: block; font-size: 14px; margin-top: 4px; }}
                 .tp {{ color: #22c55e; }}
                 .sl {{ color: #ef4444; }}
-                .indicators-grid {{ display: flex; justify-content: space-between; background: #030712; padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 11px; color: #cbd5e1; text-align: center; }}
+                .indicators-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; background: #030712; padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 12px; color: #cbd5e1; text-align: center; }}
+                .ind-box {{ background: #111827; padding: 6px; border-radius: 6px; }}
                 .advice {{ background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); padding: 10px; border-radius: 8px; margin-top: 12px; font-size: 11px; color: #7dd3fc; line-height: 1.4; }}
                 .footer-status {{ margin-top: 15px; font-size: 10px; color: #64748b; text-align: center; }}
             </style>
@@ -113,10 +113,10 @@ def pro_trading_dashboard():
                     </div>
 
                     <div class="indicators-grid">
-                        <div>السعر: <b>{close}</b></div>
-                        <div>EMA 7: <b>{ema7}</b></div>
-                        <div>البعد: <b>{distance_from_ema}</b></div>
-                        <div>التريند: <b>{super_trend}</b></div>
+                        <div class="ind-box">السعر: <b>{close}</b></div>
+                        <div class="ind-box">EMA 7: <b>{ema7}</b></div>
+                        <div class="ind-box">RSI 14: <b>{rsi}</b></div>
+                        <div class="ind-box">التريند: <b>{super_trend}</b></div>
                     </div>
 
                     <div class="targets-box">
