@@ -1,6 +1,10 @@
+
 Flask
 pandas
 numpy
 yfinance
 requests
+plotly
+pandas-ta
+streamlit
 
