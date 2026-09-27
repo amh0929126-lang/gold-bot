@@ -1,7 +1,11 @@
-streamlit
-yfinance
+Flask
 pandas
+numpy
+yfinance
+requests
+streamlit
 plotly
+
 
 
 
