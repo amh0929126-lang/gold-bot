@@ -2,58 +2,68 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import numpy as np
-import plotly.graph_objects as go
 import time
 
-# 1. إعدادات اللوحة البريموم الفاخرة للذهب
-st.set_page_config(page_title="رادار الذهب الذكي - فريم 5 دقائق", page_icon="🏆", layout="centered")
+# 1. إعدادات اللوحة الفنية وتطابق التصميم والألوان مع نموذجك المفضل
+st.set_page_config(page_title="صائد الموجات (نظام الحماية الذكي)", page_icon="⚡", layout="centered")
 
-# تصميم CSS فخم جداً ومظلم يطابق المنصات الاحترافية العالمية
 st.markdown("""
     <style>
-    .stApp { background-color: #060913; color: #f8fafc; }
+    .stApp { background-color: #0b0f19; color: #f8fafc; }
     
-    /* شريط الحالة المطور */
+    /* شريط الحالة البرتقالي ACTIVE */
     .header-banner {
-        background: linear-gradient(90deg, #ff6b00 0%, #ff8c00 100%); color: #ffffff; padding: 12px; 
-        border-radius: 8px; text-align: center; font-weight: bold; 
-        font-size: 15px; box-shadow: 0 4px 10px rgba(255, 107, 0, 0.3); margin-bottom: 20px;
+        background-color: #ff6b00; color: #ffffff; padding: 10px; 
+        border-radius: 6px; text-align: center; font-weight: bold; 
+        font-size: 14px; letter-spacing: 0.5px; margin-bottom: 20px;
     }
     
-    /* صناديق الدخول والتشبع الفوري */
-    .box-buy-now {
-        border: 2px solid #10b981; background: linear-gradient(90deg, rgba(16, 185, 129, 0.2) 0%, rgba(6, 78, 59, 0.4) 100%);
-        border-radius: 12px; padding: 20px; text-align: center; color: #34d399; font-size: 22px; font-weight: 800;
+    /* صناديق الحالات الفنية المقوسة والملونة لشروط الدخول */
+    .box-buy {
+        border: 1px solid #10b981; background-color: rgba(16, 185, 129, 0.05);
+        border-radius: 12px; padding: 18px; text-align: center; color: #10b981;
+        font-size: 18px; font-weight: bold; margin-bottom: 15px;
     }
-    .box-sell-now {
-        border: 2px solid #ef4444; background: linear-gradient(90deg, rgba(239, 68, 68, 0.2) 0%, rgba(69, 10, 10, 0.4) 100%);
-        border-radius: 12px; padding: 20px; text-align: center; color: #f87171; font-size: 22px; font-weight: 800;
+    .box-sell {
+        border: 1px solid #ef4444; background-color: rgba(239, 68, 68, 0.05);
+        border-radius: 12px; padding: 18px; text-align: center; color: #ef4444;
+        font-size: 18px; font-weight: bold; margin-bottom: 15px;
     }
-    .box-hold-wait {
-        border: 1px dashed #64748b; background-color: #0f172a;
-        border-radius: 12px; padding: 20px; text-align: center; color: #94a3b8; font-size: 18px;
-    }
-    
-    .condition-sub {
-        background-color: #1e293b; border-radius: 6px; padding: 8px; margin-top: 10px;
-        font-size: 13px; color: #38bdf8; font-weight: bold;
+    .box-hold {
+        border: 1px dashed #4b5563; background-color: #111827;
+        border-radius: 12px; padding: 18px; text-align: center; color: #94a3b8;
+        font-size: 16px; margin-bottom: 15px;
     }
     
-    /* كروت عرض البيانات الفنية */
+    .condition-box {
+        border: 1px dashed #38bdf8; background-color: rgba(56, 189, 248, 0.03);
+        border-radius: 8px; padding: 12px; text-align: center; color: #38bdf8;
+        font-size: 15px; font-weight: bold; margin-bottom: 20px;
+    }
+    
+    /* كروت عرض البيانات الرقمية المتناسقة والمصفوفة بدقة */
     .data-card {
-        background-color: #0f172a; border: 1px solid #1e293b;
-        border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        background-color: #111827; border: 1px solid #1f2937;
+        border-radius: 8px; padding: 12px; text-align: center; margin-bottom: 12px;
+        min-height: 70px; display: flex; flex-direction: column; justify-content: center;
     }
-    .data-label { color: #64748b; font-size: 13px; font-weight: bold; }
-    .data-value { color: #ffffff; font-size: 22px; font-weight: bold; margin-top: 5px; }
+    .data-inner { display: flex; justify-content: space-around; align-items: center; width: 100%; }
+    .data-label { color: #94a3b8; font-size: 13px; font-weight: 500; }
+    .data-value { color: #ffffff; font-size: 18px; font-weight: bold; }
     
-    /* أرقام الصفقات */
-    .target-sl { color: #f87171; font-size: 18px; font-weight: bold; text-align: center; background:#450a0a; padding: 10px; border-radius:6px;}
-    .target-tp { color: #4ade80; font-size: 18px; font-weight: bold; text-align: center; background:#022c22; padding: 10px; border-radius:6px;}
+    /* صناديق مستويات الأهداف ووقف الخسارة الجذابة */
+    .target-box {
+        background-color: #111827; border: 1px solid #1f2937; border-radius: 8px;
+        padding: 10px; text-align: center; margin-bottom: 20px;
+    }
+    .target-title { color: #64748b; font-size: 12px; margin-bottom: 4px; font-weight: 500; }
+    .target-val-sl { color: #f87171; font-size: 16px; font-weight: bold; }
+    .target-val-tp { color: #4ade80; font-size: 16px; font-weight: bold; }
     
+    /* صندوق التوجيه المنهجي السفلي */
     .info-box {
-        border: 1px solid #334155; background-color: #0f172a;
-        border-radius: 10px; padding: 15px; font-size: 14px; line-height: 1.6;
+        border: 1px solid #1f2937; background-color: rgba(17, 24, 39, 0.6);
+        border-radius: 8px; padding: 12px; font-size: 13px; line-height: 1.5; color: #f3f4f6;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -62,16 +72,16 @@ def play_sound():
     sound_html = '<iframe src="https://mixkit.co" allow="autoplay" style="display:none" id="iframeAudio"></iframe>'
     st.markdown(sound_html, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center; color: #d4af37; font-weight: 800;'>🏆 رادار الذهب ومقتنص صفقات السعر الفوري</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #64748b; font-size: 14px;'>تحليل متقدم للتصحيحات ومستويات التشبع (RSI 70/30) • فريم 5 دقائق</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #38bdf8; font-weight: bold; font-size: 24px;'>⚡ صائد الموجات (نظام الحماية الذكي)</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 20px;'>مفعل بنجاح (RSI 70/30) فلتر التصحيح والتشبع الدقيق للذهب الحقيقي</p>", unsafe_allow_html=True)
 
-# تثبيت الرمز الفوري الدقيق والمطابق لمنصة Exness 100%
-ticker = "XAUUSD=X"
-timeframe = "5m"
+# تغذية السعر الفوري لـ XAU/USD المباشر بدلاً من الرموز المضللة بالبورصات الأخرى
+ticker = "XAUUSD=X" 
+timeframe = "5m" 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=2) # تم تقليل التجميد لـ 2 ثانية لبث السعر والشموع لحظياً وبدون أي تأخير
 def fetch_live_gold():
-    df = yf.download(tickers=ticker, period="1d", interval=timeframe, progress=False)
+    df = yf.download(tickers=ticker, period="3d", interval=timeframe, progress=False)
     if not df.empty and isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.droplevel(1)
     return df
@@ -79,19 +89,19 @@ def fetch_live_gold():
 df = fetch_live_gold()
 
 if df.empty or len(df) < 15:
-    st.markdown("<div class='box-hold-wait'>🔄 جاري مزامنة النبضات السعرية والمؤشرات الفنية للذهب...</div>", unsafe_allow_html=True)
+    st.markdown("<div class='box-hold'>🔄 جاري مزامنة النبضات السعرية والمؤشرات الفنية للذهب مع المنصة...</div>", unsafe_allow_html=True)
 else:
-    # ------------------ المحرك الرياضي الدقيق للمؤشرات ------------------
+    # 1. حساب المتوسط المتحرك الأسي EMA 7 المطابق لحركة الشموع
     df['EMA_7'] = df['Close'].ewm(span=7, adjust=False).mean()
     
-    # حساب RSI 14 بدقة البورصة
+    # 2. حساب مؤشر القوة النسبية RSI 14 الدقيق للتصحيحات
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).ewm(alpha=1/14, adjust=False).mean()
     loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/14, adjust=False).mean()
     rs = gain / (loss + 1e-10)
     df['RSI_14'] = 100 - (100 / (1 + rs))
     
-    # حساب السوبر تريند (ATR 10, Multiplier 3)
+    # 3. حساب خوارزمية السوبر تريند الرسمية (ATR 10, Multiplier 3)
     period = 10
     multiplier = 3
     high_low = df['High'] - df['Low']
@@ -132,6 +142,7 @@ else:
         else:
             df.iloc[i, df.columns.get_loc('ST_Line')] = df['Final_UB'].iloc[i]
 
+    # قراءة بيانات آخر شمعة حركية حية لمطابقة الأرقام في المنصة
     last_candle = df.iloc[-1]
     current_price = round(float(last_candle['Close']), 2)
     ema_val = round(float(last_candle['EMA_7']), 2)
@@ -139,42 +150,8 @@ else:
     st_dir = int(last_candle['ST_Dir'])
     st_line = round(float(last_candle['ST_Line']), 2)
     atr_val = float(last_candle['ATR'])
-
-    # ------------------ محرك الفرز الذكي لتحديد زمن الدخول بدقة ------------------
-    entry_timing = "انتظار واقتناص الإشارة المعيارية الحية ⏳"
-    signal_status = "hold"
-    guidance = "السوق الآن في مرحلة توازن. المحرك يراقب ارتداد السعر من مستويات الدعم والمقاومة لخط السوبر تريند الحقيقي لتوليد فرصة دخول آمنة."
     
-    if st_dir == 1: # الاتجاه العام صاعد
-        if current_price > ema_val:
-            if rsi_val >= 70:
-                signal_status = "hold_buy"
-                entry_timing = "⚠️ تجميد الدخول (السوق وصل للتشبع الشرائي في القمة)"
-                guidance = "الذهب صاعد ولكن مؤشر RSI تخطى 70 في القمة. لا تشتري الآن لتتجنب الانعكاس المؤقت، انتظر حتى يهبط السعر لتصحيح بسيط."
-            elif rsi_val <= 35:
-                signal_status = "buy_now"
-                entry_timing = "🔥 فرصة ذهبية للدخول (انتهاء التصحيح والارتداد من القاع)"
-                guidance = "الذهب في اتجاه صاعد عام ووصل لمستويات تصحيح عميقة وقريبة من ذروة البيع. الدخول شراء الآن يعتبر نموذجياً وبأقل نسبة مخاطرة."
-            else:
-                signal_status = "buy_now"
-                entry_timing = "🟢 اقتنص صفقة الشراء الآن (موجة صاعدة مستقرة)"
-                guidance = "الاتجاه صاعد والسعر مستقر فوق متوسط EMA 7 وزخم RSI متوازن. الدخول شراء مناسب ومستمر نحو الأهداف."
-    else: # الاتجاه العام هابط
-        if current_price < ema_val:
-            if rsi_val <= 30:
-                signal_status = "hold_sell"
-                entry_timing = "⚠️ تجميد الدخول (السوق وصل للتشبع البيعي في القاع)"
-                guidance = "الاتجاه هابط ولكن الذهب غرق في ذروة البيع (RSI تحت 30). قد يحدث ارتداد صعودي تصحيحي في أي لحظة، انتظر صعود السعر قليلاً لتبيع من قمة أفضل."
-            elif rsi_val >= 65:
-                signal_status = "sell_now"
-                entry_timing = "🔥 فرصة ذهبية للبيع (انتهاء التصحيح الصعودي المؤقت)"
-                guidance = "الاتجاه العام هابط والذهب قام بتصحيح صعودي مؤقت ووصل لتشبع شرائي نسبي. هذا هو الوقت المثالي لفتح صفقة بيع (Short) من القمة."
-            else:
-                signal_status = "sell_now"
-                entry_timing = "🔴 اقتنص صفقة البيع الآن (زخم هابط قوي)"
-                guidance = "الاتجاه هابط والذهب يواصل النزيف تحت خطوط المقاومة وخط EMA 7 بشكل مستقر وسلس. الدخول بيع يواكب الموجة الحالية."
-
-    # حساب مستويات الأهداف الدقيقة المفلترة بالتذبذب اللحظي لحساب إكسنس
+    # حساب أهداف وقف الخسارة الدقيقة المفلترة بالتذبذب
     tp1_buy = round(current_price + (atr_val * 1.5), 2)
     tp2_buy = round(current_price + (atr_val * 3.0), 2)
     sl_buy = round(st_line, 2)
@@ -183,17 +160,43 @@ else:
     tp2_sell = round(current_price - (atr_val * 3.0), 2)
     sl_sell = round(st_line, 2)
 
-    # ------------------ بناء وتحديث الواجهة الاحترافية ------------------
-    st.markdown("<div class='header-banner'>⚡ SMART TIMING FILTER & GOLD TREND SCANNER ACTIVE</div>", unsafe_allow_html=True)
+    # فلترة وإصدار الإشارات بناءً على وضع الزخم والاتجاه
+    signal_status = "hold"
+    if st_dir == 1:
+        if current_price > ema_val and rsi_val < 70:
+            signal_status = "buy"
+    elif st_dir == -1:
+        if current_price < ema_val and rsi_val > 30:
+            signal_status = "sell"
+
+    # 1. شريط الحماية والتشبع (ACTIVE)
+    st.markdown("<div class='header-banner'>⚡ SMART CORRECTION & RSI FILTER ACTIVE</div>", unsafe_allow_html=True)
     
-    # عرض صندوق الحالة والزمن المناسب للدخول كعنوان رئيسي ملون
-    if "buy_now" in signal_status:
-        st.markdown(f"<div class='box-buy-now'>{entry_timing}</div>", unsafe_allow_html=True)
-        st.markdown("<div class='condition-box'>🚀 شروط الاستراتيجية متوافقة بالكامل للذهب (دخول آمن فوراً)</div>", unsafe_allow_html=True)
+    # 2. كتل وصناديق الحالات الفنية المطابقة للنموذج المطلوب
+    if signal_status == "buy":
+        st.markdown("<div class='box-buy'>🟢 فرصة شراء متاحة (تصحيح بسيط مقبول)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='condition-box'>🚀 شروط الاستراتيجية مكتملة (اقتنص الفرصة بلا تردد)</div>", unsafe_allow_html=True)
         play_sound()
-    elif "sell_now" in signal_status:
-        st.markdown(f"<div class='box-sell-now'>{entry_timing}</div>", unsafe_allow_html=True)
-        st.markdown("<div class='condition-box'>📉 شروط الاتجاه مكتملة لركوب الموجة الهابطة (بيع فوري)</div>", unsafe_allow_html=True)
+    elif signal_status == "sell":
+        st.markdown("<div class='box-sell'>🔴 فرصة بيع متاحة (استمرار هبوط مؤكد)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='condition-box'>📉 شروط الاستراتيجية مكتملة بيعاً (اقتنص الفرصة)</div>", unsafe_allow_html=True)
         play_sound()
     else:
-        st.markdown(f"<div class='box-hold-wait'>⚪ {entry_timing}</div>", unsafe_allow_html=True)
+        st.markdown("<div class='box-hold'>⚪ وضع الانتظار والمراقبة مستمرة الآن على فريم 5 دقائق</div>", unsafe_allow_html=True)
+        st.markdown("<div class='condition-box'>🔍 المحرك الآلي يراقب الأسعار... انتظر اكتمال الشروط بالكامل</div>", unsafe_allow_html=True)
+
+    # 3. عرض الأرقام الفنية والمؤشرات في عمودين متناسقين تماماً كالمنصة
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown(f"<div class='data-card'><div class='data-inner'><span class='data-label'>السعر:</span><span class='data-value'>{current_price}</span></div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='data-card'><div class='data-inner'><span class='data-label'>RSI 14:</span><span class='data-value'>{rsi_val}</span></div></div>", unsafe_allow_html=True)
+    with col_b:
+        st.markdown(f"<div class='data-card'><div class='data-inner'><span class='data-label'>EMA 7:</span><span class='data-value'>{ema_val}</span></div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='data-card'><div class='data-inner'><span class='data-label'>التريند:</span><span class='data-value'>{'صاعد' if st_dir == 1 else 'هابط'}</span></div></div>", unsafe_allow_html=True)
+
+    st.write("")
+    
+    # 4. مستويات وقف الخسارة والأهداف مصفوفة أفقياً
+    col_sl, col_tp1, col_tp2 = st.columns(3)
+    if st_dir == 1 or signal_status == "buy":
+        with col_sl: st.markdown(f"<div class='target-box'><div class='target-title'>وقف الخسارة</div><div class='target-val-sl'>{sl_buy}</div></div>", unsafe_allow_html=True)
