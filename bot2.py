@@ -38,39 +38,56 @@ def pro_trading_dashboard():
     super_trend = "صاعد" if close >= (ema7 - 1.5) else "هابط"
     is_bullish_trend = (super_trend == "صاعد")
 
-    # 3. محرك الحماية والذكاء الفني
+    # 3. محرك الحماية والذكاء الفني (مع إضافة فلتر التشبع RSI: فوق 70 وتحت 30)
     distance_from_ema = round(abs(close - ema7), 2)
 
-    if is_bullish_trend:
-        sl = round(close - 3.0, 2)
-        tp1 = round(close + 3.5, 2)
-        tp2 = round(close + 7.0, 2)
-        
-        if distance_from_ema > 2.5:
-            signal = "⚠️ تحذير: تصحيح خطير أو كسر محتمل (تجنب الشراء)"
-            status_class = "warning"
-            confidence = "🛑 انعكاس هيكلي قوي - ابتعد عن السوق مؤقتاً"
-            advice = "التصحيح الحالي تجاوز الحدود وأصبح خطيراً. لا تدخل شراء الآن وانتظر حتى يستقر السعر."
-        else:
-            signal = "🟢 فرصة شراء متاحة (تصحيح بسيط مقبول)"
-            status_class = "buy"
-            confidence = "🚀 شروط الاستراتيجية مكتملة (اقتنص الفرصة بلا تردد)"
-            advice = "التصحيح الحالي صغير وطبيعي داخل الاتجاه الصاعد. الفرصة ممتازة والدخول آمن."
+    if rsi >= 70:
+        signal = "⚠️ تحذير شديد: تشبع شراء (Overbought)"
+        status_class = "warning"
+        confidence = "🛑 السوق متخم بالمشترين - خطر انعكاس هبوطي"
+        advice = "مؤشر RSI 14 تجاوز 70 (منطقة تشبع شراء). تجنب فتح صفقات شراء جديدة وانتظر التصحيح."
+    elif rsi <= 30:
+        signal = "⚠️ تحذير شديد: تشبع بيع (Oversold)"
+        status_class = "warning"
+        confidence = "🛑 السوق متخم والبائعون استنفذوا الزخم - خطر ارتداد"
+        advice = "مؤشر RSI 14 انخفض تحت 30 (منطقة تشبع بيع). تجنب فتح صفقات بيع جديدة."
     else:
-        sl = round(close + 3.0, 2)
-        tp1 = round(close - 3.5, 2)
-        tp2 = round(close - 7.0, 2)
-        
-        if distance_from_ema > 2.5:
-            signal = "⚠️ تحذير: تصحيح صاعد خطير (تجنب البيع)"
-            status_class = "warning"
-            confidence = "🛑 انعكاس هيكلي قوي - ابتعد عن السوق مؤقتاً"
-            advice = "الارتداد التصحيحي الحالي قوي وخطير. تجنب البيع تماماً حتى تتضح الرؤية."
+        if is_bullish_trend:
+            sl = round(close - 3.0, 2)
+            tp1 = round(close + 3.5, 2)
+            tp2 = round(close + 7.0, 2)
+            
+            if distance_from_ema > 2.5:
+                signal = "⚠️ تحذير: تصحيح خطير أو كسر محتمل (تجنب الشراء)"
+                status_class = "warning"
+                confidence = "🛑 انعكاس هيكلي قوي - ابتعد عن السوق مؤقتاً"
+                advice = "التصحيح الحالي تجاوز الحدود وأصبح خطيراً. لا تدخل شراء الآن وانتظر حتى يستقر السعر."
+            else:
+                signal = "🟢 فرصة شراء متاحة (تصحيح بسيط مقبول)"
+                status_class = "buy"
+                confidence = "🚀 شروط الاستراتيجية مكتملة (اقتنص الفرصة بلا تردد)"
+                advice = "التصحيح الحالي صغير وطبيعي داخل الاتجاه الصاعد. الفرصة ممتازة والدخول آمن."
         else:
-            signal = "🔴 فرصة بيع متاحة (تصحيح بسيط مقبول)"
-            status_class = "sell"
-            confidence = "🚀 شروط الاستراتيجية مكتملة (اقتنص الفرصة بلا تردد)"
-            advice = "التصحيح الحالي صغير وطبيعي داخل الاتجاه الهابط. استمر في اقتناص الفرص."
+            sl = round(close + 3.0, 2)
+            tp1 = round(close - 3.5, 2)
+            tp2 = round(close - 7.0, 2)
+            
+            if distance_from_ema > 2.5:
+                signal = "⚠️ تحذير: تصحيح صاعد خطير (تجنب البيع)"
+                status_class = "warning"
+                confidence = "🛑 انعكاس هيكلي قوي - ابتعد عن السوق مؤقتاً"
+                advice = "الارتداد التصحيحي الحالي قوي وخطير. تجنب البيع تماماً حتى تتضح الرؤية."
+            else:
+                signal = "🔴 فرصة بيع متاحة (تصحيح بسيط مقبول)"
+                status_class = "sell"
+                confidence = "🚀 شروط الاستراتيجية مكتملة (اقتنص الفرصة بلا تردد)"
+                advice = "التصحيح الحالي صغير وطبيعي داخل الاتجاه الهابط. استمر في اقتناص الفرص."
+
+    # ضبط الأهداف في حال مناطق التشبع لتجنب الأخطاء
+    if rsi >= 70 or rsi <= 30:
+        sl = round(close - 3.0, 2) if is_bullish_trend else round(close + 3.0, 2)
+        tp1 = round(close + 3.5, 2) if is_bullish_trend else round(close - 3.5, 2)
+        tp2 = round(close + 7.0, 2) if is_bullish_trend else round(close - 7.0, 2)
 
     # 4. واجهة تداول احترافية (Dark Mode مع تحديث ذاتي كل 5 ثوانٍ وإظهار مؤشر RSI 14)
     html = f"""
@@ -106,8 +123,8 @@ def pro_trading_dashboard():
             <div style="text-align: center;">
                 <div class="card">
                     <h1>🌊 صائد الموجات (نظام الحماية الذكي)</h1>
-                    <div class="sub-title">يسمح بالتصحيحات البسيطة ويحذرك من الخطيرة فوراً</div>
-                    <div class="live-badge">⚡ SMART CORRECTION FILTER ACTIVE</div>
+                    <div class="sub-title">فلتر التصحيح والتشبع (RSI 70/30) مفعل بنجاح</div>
+                    <div class="live-badge">⚡ SMART CORRECTION & RSI FILTER ACTIVE</div>
                     
                     <div class="signal-box {status_class}">
                         {signal}
@@ -135,7 +152,7 @@ def pro_trading_dashboard():
                     </div>
 
                     <div class="footer-status">
-                        ⚡ مرونة كاملة في اقتناص الفرص مع تنبيه فوري عند المخاطر العالية
+                        ⚡ مرونة كاملة في اقتناص الفرص مع تنبيه فوري عند مناطق التشبع
                     </div>
                 </div>
             </div>
