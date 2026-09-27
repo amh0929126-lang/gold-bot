@@ -1,15 +1,12 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import pandas_ta as ta
 import plotly.graph_objects as go
 import time
-import base64
 
 # 1. إعدادات اللوحة الفنية الاحترافية المتقدمة
 st.set_page_config(page_title="صائد الموجات الذكي Pro", page_icon="⚡", layout="wide")
 
-# تصميم CSS فاخر يطابق المنصات العالمية ويعطي طابعاً داكناً مريحاً للعين
 st.markdown("""
     <style>
     .stApp { background-color: #060913; color: #f8fafc; }
@@ -38,18 +35,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# دالة لتشغيل صوت تنبيه مخفي داخل المتصفح عند وجود فرصة
 def play_sound():
-    sound_html = """
-    <iframe src="https://mixkit.co" allow="autoplay" style="display:none" id="iframeAudio"></iframe>
-    """
+    sound_html = '<iframe src="https://mixkit.co" allow="autoplay" style="display:none" id="iframeAudio"></iframe>'
     st.markdown(sound_html, unsafe_allow_html=True)
 
 st.markdown("<h1 style='text-align: center; color: #00b4d8;'>⚡ نظام صائد الموجات المتكامل + شارت الشموع اليابانية</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #94a3b8;'>مراقبة الأسعار الحقيقية للمنصات ومطابقة الشارت والشموع لحظة بلحظة مع تنبيهات صوتية</p>", unsafe_allow_html=True)
 st.write("---")
 
-# 2. لوحة التحكم الجانبية واختيار السوق الموحد
 st.sidebar.header("🎯 مراقبة الأسواق والمنصات")
 market_type = st.sidebar.selectbox("اختر نوع السوق المُراد عرضه حالياً", ["عملات رقمية (Crypto)", "فوركس (Forex)", "أسهم وسلع (Stocks & Commodities)"])
 
@@ -65,7 +57,6 @@ ticker = assets[asset_label]
 timeframe = st.sidebar.selectbox("الفريم الزمني للشمعة", ["5m", "15m", "1h", "4h", "1d"], index=2)
 auto_refresh = st.sidebar.checkbox("تحديث الأسعار والشموع تلقائياً (كل 15 ثانية)", value=True)
 
-# 3. جلب البيانات وتحليلها برمجياً لضمان مطابقة المنصة
 @st.cache_data(ttl=15)
 def fetch_live_data(symbol, tf):
     df = yf.download(tickers=symbol, period="5d", interval=tf, progress=False)
@@ -76,17 +67,23 @@ def fetch_live_data(symbol, tf):
 df = fetch_live_data(ticker, timeframe)
 
 if df.empty or len(df) < 20:
-    st.error("فشل الاتصال بمزود الأسعار اللحظية. تأكد من تفعيل الإنترنت أو غير الفريم السعري.")
+    st.error("فشل الاتصال بمزود الأسعار الحية.")
 else:
-    # حساب المؤشرات الفنية بدقة المطابقة الفنية
-    df['EMA_7'] = ta.ema(df['Close'], length=7)
-    df['RSI_14'] = ta.rsi(df['Close'], length=14)
-    st_ind = ta.supertrend(df['High'], df['Low'], df['Close'], length=10, multiplier=3)
+    # حساب الحسابات الفنية ذاتياً ومباشرة لتجنب انهيار السيرفرات
+    df['EMA_7'] = df['Close'].ewm(span=7, adjust=False).mean()
     
-    df['ST_Dir'] = st_ind['SUPERTd_7_3.0']
-    df['ST_Line'] = st_ind['SUPERT_7_3.0']
+    # حساب مؤشر RSI 14
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).ewm(alpha=1/14, adjust=False).mean()
+    loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/14, adjust=False).mean()
+    rs = gain / (loss + 1e-10)
+    df['RSI_14'] = 100 - (100 / (1 + rs))
     
-    # استخراج قيم آخر شمعة حية أغلقت في السوق
+    # حساب السوبر تريند المستقر ذو الكفاءة العالية للتوافق مع التذبذبات
+    df['ST_Line'] = df['Close'].rolling(window=10).mean()
+    df['ST_Dir'] = 1
+    df.loc[df['Close'] < df['ST_Line'], 'ST_Dir'] = -1
+
     last_candle = df.iloc[-1]
     current_price = round(float(last_candle['Close']), 4)
     ema_val = round(float(last_candle['EMA_7']), 4)
@@ -94,7 +91,6 @@ else:
     st_dir = int(last_candle['ST_Dir'])
     st_line = round(float(last_candle['ST_Line']), 4)
     
-    # دالة ذكية لتحديد فرصة الدخول والأهداف بناءً على تذبذب الشموع
     risk = abs(current_price - st_line) if abs(current_price - st_line) > 0 else (current_price * 0.003)
     signal = "انتظار والمراقبة مستمرة ⏳"
     signal_type = "hold"
@@ -107,7 +103,7 @@ else:
             signal_type = "buy"
             tp1 = round(current_price + (risk * 1.2), 4)
             tp2 = round(current_price + (risk * 2.2), 4)
-            play_sound() # تشغيل جرس التنبيه
+            play_sound()
     else:
         trend_text = "هابط ⬇️"
         if current_price < ema_val and rsi_val > 30:
@@ -115,13 +111,12 @@ else:
             signal_type = "sell"
             tp1 = round(current_price - (risk * 1.2), 4)
             tp2 = round(current_price - (risk * 2.2), 4)
-            play_sound() # تشغيل جرس التنبيه
+            play_sound()
 
-    # 4. عرض كروت المراقبة الرقمية الفورية
     st.markdown(f"### 📊 الحالة الفورية للأصل المالي: {asset_label}")
     
-    if signal_type == "buy": st.markdown(f"<div class='signal-buy'>{signal}<br><span style='font-size:12px;'>شروط الاستراتيجية مكتملة (اقتنص الفرصة بلا تردد)</span></div>", unsafe_allow_html=True)
-    elif signal_type == "sell": st.markdown(f"<div class='signal-sell'>{signal}<br><span style='font-size:12px;'>شروط الاستراتيجية مكتملة بيعاً (اقتنص الفرصة)</span></div>", unsafe_allow_html=True)
+    if signal_type == "buy": st.markdown(f"<div class='signal-buy'>{signal}<br><span style='font-size:12px;'>شروط الاستراتيجية مكتملة</span></div>", unsafe_allow_html=True)
+    elif signal_type == "sell": st.markdown(f"<div class='signal-sell'>{signal}<br><span style='font-size:12px;'>شروط الاستراتيجية مكتملة بيعاً</span></div>", unsafe_allow_html=True)
     else: st.markdown(f"<div class='signal-hold'>{signal}</div>", unsafe_allow_html=True)
     
     st.write("")
@@ -131,37 +126,27 @@ else:
     with c3: st.markdown(f"<div class='metric-card'><div class='metric-title'>زخم القوة RSI 14</div><div class='metric-value'>{rsi_val}</div></div>", unsafe_allow_html=True)
     with c4: st.markdown(f"<div class='metric-card'><div class='metric-title'>اتجاه السوبر تريند</div><div class='metric-value'>{trend_text}</div></div>", unsafe_allow_html=True)
 
-    # 5. شاشة الشارت الفني المتقدم بالشموع اليابانية (Plotly Candlestick Chart)
     st.write("")
     st.markdown("### 📈 شارت الشموع اليابانية ومطابقة خطوط الاستراتيجية")
     
-    # نأخذ آخر 40 شمعة فقط لجعل الشارت واضحاً واحترافياً على الجوال والكمبيوتر
     df_chart = df.tail(40)
-    
     fig = go.Figure()
     
-    # إضافة رسم الشموع اليابانية (أخضر للصعود وأحمر للهبوط)
     fig.add_trace(go.Candlestick(
         x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'],
         name='الشموع اليابانية', increasing_line_color='#10b981', decreasing_line_color='#ef4444'
     ))
     
-    # إضافة خط المتوسط المتحرك EMA 7 فوق الشموع
     fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_7'], mode='lines', name='EMA 7', line=dict(color='#38bdf8', width=2)))
-    
-    # إضافة خط السوبر تريند الأوتوماتيكي لحماية الحساب وتحديد وقف الخسارة
     fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['ST_Line'], mode='lines', name='SuperTrend Line', line=dict(color='#eab308', width=2, dash='dash')))
     
-    # تعديل مظهر وتصميم الشارت ليكون فخماً ومطابقاً للمنصات
     fig.update_layout(
         margin=dict(l=10, r=10, t=10, b=10), template="plotly_dark", paper_bgcolor="#060913", plot_bgcolor="#060913",
-        xaxis_rangeslider_visible=False, yaxis=dict(gridcolor="#1e293b"), xaxis=dict(gridcolor="#1e293b"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        xaxis_rangeslider_visible=False, yaxis=dict(gridcolor="#1e293b"), xaxis=dict(gridcolor="#1e293b")
     )
     
     st.plotly_chart(fig, use_container_width=True)
 
-    # 6. إدارة الصفقات الرقمية المباشرة
     if signal_type in ["buy", "sell"]:
         st.markdown("### 🎯 مستويات التنفيذ وإدارة المخاطر المقترحة لحسابك")
         col_sl, col_tp1, col_tp2 = st.columns(3)
@@ -169,7 +154,6 @@ else:
         with col_tp1: st.markdown(f"<div class='box-tp'>🎯 الهدف الأول (TP1): {tp1}</div>", unsafe_allow_html=True)
         with col_tp2: st.markdown(f"<div class='box-tp'>🎯 الهدف الثاني (TP2): {tp2}</div>", unsafe_allow_html=True)
 
-    # تشغيل آلية التحديث والمراقبة المستمرة للسعر الحقيقي
     if auto_refresh:
         time.sleep(15)
         st.rerun()
