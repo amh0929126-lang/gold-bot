@@ -3,9 +3,6 @@ pandas
 numpy
 yfinance
 requests
-streamlit
-plotly
-
 
 
 
